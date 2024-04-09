@@ -81,7 +81,39 @@ void insert_skip_list(__uint64_t key, void * data, struct skip_list * s) {
    s->size++;
 }
 
-// will only ever return 0 for 0
+void * delete_skip_list(__uint64_t key, struct skip_list * s) {
+   if (!key) return (void *)-1; /* we don't support deleting 0 */
+   struct skip_list_node * i = s->head;
+   struct skip_list_node * p[SKIP_LIST_LAYERS] = { 0 };
+   __uint8_t depth = (SKIP_LIST_LAYERS-1);
+   __uint8_t height = 0;
+   while (1) {
+      if (!i->next[depth]) {
+         if (depth) depth--; else break;
+      }
+      else if (i->next[depth]->key == key) {
+         if (!height) height = depth;
+         p[depth] = i;
+         if (depth) { depth--; continue; }
+         i = i->next[0];
+         for (int j = 0; j <= height; j++) {
+            //printf("Setting %ld next to %ld\n",p[j]->key,i->next[j]->key);
+            p[j]->next[j] = i->next[j];
+         }
+         return_skip_list_bank(i,s->bank);
+         return i->data;
+      }
+      else if (i->next[depth]->key >= key) {
+         if (depth) depth--; else break;
+      }
+      else {
+         i = i->next[depth];
+      }
+   }
+   return (void *)-1;
+}
+
+/* will only ever return 0 for 0 */
 void * query_skip_list(__uint64_t key, int * steps, struct skip_list * s) {
    struct skip_list_node * i = s->head;
    __uint8_t depth = (SKIP_LIST_LAYERS-1);
@@ -118,31 +150,38 @@ void print_skip_list(struct skip_list * s) {
 
 int main(void) {
 
-   const int cycles = 10000;
+   const long cycles = 100000;
    
    struct skip_list sk;
    struct skip_list_bank b;
    init_skip_list(cycles,&b,&sk);
 
-   for (int i = 0; i < cycles; i++) {
+   for (long i = 1; i < cycles; i++) {
       insert_skip_list(i,(void *)i,&sk);
    }
-
    int checks;
    long total = 0;
 
-   for (int i = 0; i < cycles; i++) {
+   for (long i = 1; i < cycles; i++) {
       checks = 0;
       query_skip_list(i,&checks,&sk);
       total += checks;
    }
 
-   print_skip_list(&sk);
+   for (long i = 1; i < cycles; i++) {
+      delete_skip_list(i,&sk);
+   }
 
-   printf("\nLinked List Nodes Visited: %lu\n",(long)(cycles*(cycles+1))/2);
+   for (long i = 1; i < cycles; i++) {
+      insert_skip_list(i,(void *)i,&sk);
+   }
+
+   //print_skip_list(&sk);
+
+   //printf("\nLinked List Nodes Visited: %lu\n",(long)(cycles*(cycles+1))/2);
    printf("\nTotal Nodes Visited: %lu\n",total);
    printf("\nAverage Nodes Visited: %f\n",(double)total/cycles);
-   printf("\nVisit Ratio Compared With Linked List: %f\n",(double)((double)total)/((double)(cycles*(cycles+1))/2));
+   //printf("\nVisit Ratio Compared With Linked List: %f\n",(double)((double)total)/((double)(cycles*(cycles+1))/2));
 
    destroy_skip_list(&sk);
 

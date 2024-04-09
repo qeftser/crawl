@@ -13,6 +13,8 @@ struct skip_list_bank { struct skip_list_node ** store; size_t pos; };
 
 void init_skip_list(size_t, struct skip_list_bank *, struct skip_list *);
 void insert_skip_list(__uint64_t, void *, struct skip_list *);
+void * query_skip_list(__uint64_t, int *, struct skip_list *);
+void * delete_skip_list(__uint64_t, struct skip_list *);
 void destroy_skip_list(struct skip_list *);
 void print_skip_list(struct skip_list *);
 
