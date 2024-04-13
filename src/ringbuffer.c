@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 void init_ring_buffer(size_t buffer_size, struct ring_buffer * r) {
    r->pos = 0;

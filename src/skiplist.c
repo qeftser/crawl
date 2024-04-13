@@ -8,7 +8,7 @@
 void init_skip_list_bank(size_t elements, struct skip_list_bank * b) {
    b->store = malloc(sizeof(struct skip_list_node *)*elements);
    b->pos = elements;
-   for (size_t i = 0; i < elements; i++) {
+   for (size_t i = 0; i < elements; ++i) {
       b->store[i] = malloc(sizeof(struct skip_list_node));
    }
 }
@@ -19,7 +19,7 @@ struct skip_list_node * checkout_skip_list_bank(struct skip_list_bank * b) {
 }
 
 void return_skip_list_bank(struct skip_list_node * n, struct skip_list_bank * b) {
-   b->store[(b->pos)++] = n;
+   b->store[(b->pos)] = n; ++(b->pos);
 }
 
 void init_skip_list(size_t max_size, struct skip_list_bank * b, struct skip_list * s) {
@@ -36,7 +36,7 @@ void init_skip_list(size_t max_size, struct skip_list_bank * b, struct skip_list
 }
 
 void destroy_skip_list(struct skip_list * s) {
-   for (size_t i = 0; i < s->bank->pos; i++) {
+   for (size_t i = 0; i < s->bank->pos; ++i) {
       free(s->bank->store[i]);
    }
    struct skip_list_node * yeet;
@@ -71,7 +71,7 @@ void insert_skip_list(__uint64_t key, void * data, struct skip_list * s) {
             n->next[depth] = i->next[depth];
             i->next[depth] = n;
          }
-         if (depth) depth--;
+         if (depth) --depth;
          else break;
       }
       else {
@@ -94,9 +94,9 @@ void * delete_skip_list(__uint64_t key, struct skip_list * s) {
       else if (i->next[depth]->key == key) {
          if (!height) height = depth;
          p[depth] = i;
-         if (depth) { depth--; continue; }
+         if (depth) { --depth; continue; }
          i = i->next[0];
-         for (int j = 0; j <= height; j++) {
+         for (int j = 0; j <= height; ++j) {
             //printf("Setting %ld next to %ld\n",p[j]->key,i->next[j]->key);
             p[j]->next[j] = i->next[j];
          }
@@ -104,7 +104,7 @@ void * delete_skip_list(__uint64_t key, struct skip_list * s) {
          return i->data;
       }
       else if (i->next[depth]->key >= key) {
-         if (depth) depth--; else break;
+         if (depth) --depth; else break;
       }
       else {
          i = i->next[depth];
@@ -148,6 +148,7 @@ void print_skip_list(struct skip_list * s) {
    printf(".________________.-"); for (int i = 1; i < len; i++) { printf(".__.-"); } putchar('\n');
 }
 
+/*
 int main(void) {
 
    const long cycles = 100000;
@@ -156,23 +157,23 @@ int main(void) {
    struct skip_list_bank b;
    init_skip_list(cycles,&b,&sk);
 
-   for (long i = 1; i < cycles; i++) {
+   for (long i = 1; i < cycles; ++i) {
       insert_skip_list(i,(void *)i,&sk);
    }
    int checks;
    long total = 0;
 
-   for (long i = 1; i < cycles; i++) {
+   for (long i = 1; i < cycles; ++i) {
       checks = 0;
       query_skip_list(i,&checks,&sk);
       total += checks;
    }
 
-   for (long i = 1; i < cycles; i++) {
+   for (long i = 1; i < cycles; ++i) {
       delete_skip_list(i,&sk);
    }
 
-   for (long i = 1; i < cycles; i++) {
+   for (long i = 1; i < cycles; ++i) {
       insert_skip_list(i,(void *)i,&sk);
    }
 
@@ -187,4 +188,5 @@ int main(void) {
 
 
 }
+*/
 
