@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-/* elementnum must be odd - pointernum must be even and one greater than elementnum*/
+/* elementnum must be odd - pointernum must be even and one greater than elementnum */
 #define BTREE_BLOCKSIZE 4096
 #define BTREE_ELEMENTNUM 255
 #define BTREE_POINTERNUM 256

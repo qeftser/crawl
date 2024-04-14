@@ -1,5 +1,6 @@
 
 #include "skiplist.h"
+#include "btree.h"
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
@@ -97,7 +98,6 @@ void * delete_skip_list(__uint64_t key, struct skip_list * s) {
          if (depth) { --depth; continue; }
          i = i->next[0];
          for (int j = 0; j <= height; ++j) {
-            //printf("Setting %ld next to %ld\n",p[j]->key,i->next[j]->key);
             p[j]->next[j] = i->next[j];
          }
          return_skip_list_bank(i,s->bank);
@@ -118,7 +118,7 @@ void * query_skip_list(__uint64_t key, int * steps, struct skip_list * s) {
    struct skip_list_node * i = s->head;
    __uint8_t depth = (SKIP_LIST_LAYERS-1);
    while (1) {
-      if (i->key == key) return i->data;
+      if (i->key == key) { return i->data;}
       else if (!i->next[depth] || i->next[depth]->key > key) {
          if (depth) depth--; else break;
       }
@@ -151,21 +151,28 @@ void print_skip_list(struct skip_list * s) {
 /*
 int main(void) {
 
-   const long cycles = 100000;
+   const long cycles = 1000000;
+
+   int elements[cycles];
+
+   for (int i = 0; i < cycles; ++i) {
+      elements[i] = rand();
+   }
    
    struct skip_list sk;
    struct skip_list_bank b;
    init_skip_list(cycles,&b,&sk);
 
    for (long i = 1; i < cycles; ++i) {
-      insert_skip_list(i,(void *)i,&sk);
+      insert_skip_list(elements[i],(void *)i,&sk);
    }
    int checks;
    long total = 0;
 
    for (long i = 1; i < cycles; ++i) {
       checks = 0;
-      query_skip_list(i,&checks,&sk);
+      printf("checking: %ld\n",i);
+      query_skip_list(elements[i],&checks,&sk);
       total += checks;
    }
 
@@ -180,8 +187,8 @@ int main(void) {
    //print_skip_list(&sk);
 
    //printf("\nLinked List Nodes Visited: %lu\n",(long)(cycles*(cycles+1))/2);
-   printf("\nTotal Nodes Visited: %lu\n",total);
-   printf("\nAverage Nodes Visited: %f\n",(double)total/cycles);
+   //printf("\nTotal Nodes Visited: %lu\n",total);
+   //printf("\nAverage Nodes Visited: %f\n",(double)total/cycles);
    //printf("\nVisit Ratio Compared With Linked List: %f\n",(double)((double)total)/((double)(cycles*(cycles+1))/2));
 
    destroy_skip_list(&sk);
