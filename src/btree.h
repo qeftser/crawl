@@ -7,11 +7,11 @@
 
 /* elementnum must be odd - pointernum must be even and one greater than elementnum */
 #define BTREE_BLOCKSIZE 4096L
-#define BTREE_ELEMENTNUM 3
-#define BTREE_POINTERNUM 4
-#define BTREE_DATASIZE 7
-#define BTREE_CACHE_SIZE 5
-#define BTREE_BANK_SIZE 8
+#define BTREE_ELEMENTNUM 255
+#define BTREE_POINTERNUM 256
+#define BTREE_DATASIZE 511
+#define BTREE_CACHE_SIZE 9973 
+#define BTREE_BANK_SIZE 9980
 
 struct btree { int size; int fptr; struct btree_node * root; struct btree_cache * cache; struct btree_node_bank * bank; };
 struct btree_cache { int size; struct skip_list * l; struct ring_buffer * r; };

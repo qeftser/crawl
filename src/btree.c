@@ -54,6 +54,8 @@ void destroy_btree_node_bank(struct btree_node_bank * b) {
    free(b->store);
 }
 
+#define BT_HELD 0x00010000
+#define BT_ROOT 0x00100000
 #define BT_NODE 0x00000100
 #define BT_LEAF 0x00000001
 #define BT_MOD  0x00000010
@@ -75,9 +77,26 @@ void destroy_btree_node_bank(struct btree_node_bank * b) {
 #define SET_NODE_BT(x) (x|=0x00000100)
 #define UNSET_NODE_BT(x) (x&=0xfffff0ff)
 
+#define IS_HELD_BT(x) ((x)&0x00010000)
+#define SET_HELD_BT(x) (x|=0x00010000)
+#define UNSET_HELD_BT(x) (x&=0xfff0ffff)
+
+#define IS_ROOT_BT(x) ((x)&0x00100000)
+#define SET_ROOT_BT(x) (x|=0x00100000)
+#define UNSET_ROOT_BT(x) (x&=0xff0fffff)
+
 #define CLEAR_BT(x) (x&=0xfffff000)
 #define MULTI_SET_BT(x,flags) (x|=(flags))
 
+void ensure_valid_btree_node(struct btree_node * n) {
+   if (!n) return;
+   if (!IS_CHECKOUT_BT(n->flags)) {
+      if (!IS_HELD_BT(n->flags)) {
+         printf("not held\n");
+      }
+      printf("not valid\n");
+   }
+}
 
 struct btree_node * checkout_btree_node_bank(struct btree_node_bank * b) {
    if (b->pos == 0) return (struct btree_node *)-1;
@@ -151,7 +170,10 @@ void add_btree_cache(struct btree_node * n, struct btree * b) {
       struct btree_node * ret;
       ret = delete_skip_list(add_ring_buffer(n->pos,b->cache->r),b->cache->l);
       if (ret != (void *)-1) {
-         if (IS_MOD_BT(ret->flags)) { 
+         if (IS_HELD_BT(ret->flags) || IS_ROOT_BT(ret->flags)) {
+            add_btree_cache(ret,b);
+         }
+         else if (IS_MOD_BT(ret->flags)) { 
             unload_node_btree(ret,b); 
          }
          else return_btree_node_bank(ret,b->bank);
@@ -171,12 +193,6 @@ struct btree_node * safe_add_btree_cache(struct btree_node * n, struct btree * b
    return n;
 }
 
-void ensure_valid_btree_node(struct btree_node * n, struct btree * b) {
-   if (!IS_CHECKOUT_BT(n->flags)) {
-      printf("not valid\n");
-      n = load_node_btree(n->pos,b);
-   }
-}
 
 struct btree_node * get_btree_cache(size_t pos, struct btree * b) {
    return query_skip_list(pos,NULL,b->cache->l);
@@ -230,7 +246,7 @@ void init_btree(char * filepath, struct btree * b) {
    if (exists) get_metadata_btree(b);
    else {
       b->root = load_new_node_btree(++(b->size),b);
-      MULTI_SET_BT(b->root->flags,BT_LEAF|BT_MOD);
+      MULTI_SET_BT(b->root->flags,BT_LEAF|BT_MOD|BT_ROOT);
    }
 }
 
@@ -303,6 +319,8 @@ void add_leaf_btree(__uint64_t key, struct btree_node * n) {
 }
 
 void split_leaf_btree(struct btree_node * p, struct btree_node * n, struct btree * b) {
+   SET_HELD_BT(p->flags);
+   SET_HELD_BT(n->flags);
    const static int midpoint = BTREE_DATASIZE/2;
    struct btree_node * new_sibling = load_new_node_btree(++(b->size),b);
    CLEAR_BT(new_sibling->flags); MULTI_SET_BT(new_sibling->flags,BT_MOD|BT_LEAF);
@@ -316,9 +334,13 @@ void split_leaf_btree(struct btree_node * p, struct btree_node * n, struct btree
    safe_add_btree_cache(new_sibling,b);
    safe_add_btree_cache(p,b);
    safe_add_btree_cache(n,b);
+   UNSET_HELD_BT(p->flags);
+   UNSET_HELD_BT(n->flags);
 }
 
 void split_node_btree(struct btree_node * p, struct btree_node * n, struct btree * b) {
+   SET_HELD_BT(p->flags);
+   SET_HELD_BT(n->flags);
    const static int midpoint = BTREE_ELEMENTNUM/2;
    struct btree_node * new_sibling = load_new_node_btree(++(b->size),b);
    CLEAR_BT(new_sibling->flags); MULTI_SET_BT(new_sibling->flags,BT_MOD|BT_NODE);
@@ -335,14 +357,14 @@ void split_node_btree(struct btree_node * p, struct btree_node * n, struct btree
    safe_add_btree_cache(new_sibling,b);
    safe_add_btree_cache(p,b);
    safe_add_btree_cache(n,b);
-   ensure_valid_btree_node(p,b);
-   ensure_valid_btree_node(n,b);
+   UNSET_HELD_BT(p->flags);
+   UNSET_HELD_BT(n->flags);
 }
 
 void split_root_btree(struct btree * b) {
    struct btree_node * old_root = b->root;
    struct btree_node * new_root = load_new_node_btree(++(b->size),b);
-   CLEAR_BT(new_root->flags); MULTI_SET_BT(new_root->flags,BT_MOD|BT_NODE); 
+   CLEAR_BT(new_root->flags); MULTI_SET_BT(new_root->flags,BT_MOD|BT_NODE|BT_ROOT); 
    b->root = new_root;
    new_root->data[BTREE_ELEMENTNUM] = old_root->pos;
    if (IS_LEAF_BT(old_root->flags)) {
@@ -351,6 +373,7 @@ void split_root_btree(struct btree * b) {
    else {
       split_node_btree(new_root,old_root,b);
    }
+   UNSET_ROOT_BT(old_root->flags);
 }
 
 void add_btree(__uint64_t key, struct btree * b) {
@@ -367,9 +390,6 @@ void add_btree(__uint64_t key, struct btree * b) {
 
    while (1) {
       if (is_full_btree_node(c)) {
-         if (p && is_full_btree_node(p)) {
-            printf("parent full\n");
-         }
          if (IS_LEAF_BT(c->flags)) {
             split_leaf_btree(p,c,b);
          }
@@ -377,12 +397,15 @@ void add_btree(__uint64_t key, struct btree * b) {
          c = p;
       }
 
+
       p = c;
 
       if (IS_NODE_BT(c->flags)) {
          ret = get_attempt_btree_node(key,c,&pointer);
          if (!ret) {
+            SET_HELD_BT(p->flags);
             c = get_node_btree(pointer,b);
+            UNSET_HELD_BT(p->flags);
          }
          else return;
       }
@@ -410,16 +433,20 @@ void in_order_print_helper_btree(struct btree_node * n, struct btree * b) {
       int i;
       printf("<%ldn> ",n->pos);
       for (i = 0; i < n->size; ++i) {
+         SET_HELD_BT(n->flags);
          np = get_node_btree(n->data[i+BTREE_ELEMENTNUM],b);
          putchar('\\');
          in_order_print_helper_btree(np,b);
+         UNSET_HELD_BT(n->flags);
          putchar('/');
          printf("%ld ",n->data[i]);
       }
+      SET_HELD_BT(n->flags);
       np = get_node_btree(n->data[i+BTREE_ELEMENTNUM],b);
       putchar('\\');
       in_order_print_helper_btree(np,b);
       putchar('/');
+      UNSET_HELD_BT(n->flags);
    }
 }
 
@@ -443,14 +470,14 @@ int main(void) {
 
    init_btree("btree.b",&b);
 
-   const int cycles = 50;
+   const int cycles = 25000000;
 
-   for (int i = 1; i <= cycles; i++) {
-      add_btree(i,&b);
+   for (int i = cycles; i > 0; --i) {
+      add_btree(rand(),&b);
    }
 
-   in_order_print_btree(&b);
-   cheap_print_node_btree(b.root);
+   //in_order_print_btree(&b);
+   //cheap_print_node_btree(b.root);
 
    close_btree(&b);
 
