@@ -110,6 +110,7 @@ void print_partial_diskstack(struct diskstack * d) {
    putchar('\n');
 }
 
+/*
 int main(void) {
 
    struct diskstack d;
@@ -128,3 +129,4 @@ int main(void) {
 
    return 0;
 }
+*/

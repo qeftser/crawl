@@ -171,6 +171,13 @@ struct btree_node * safe_add_btree_cache(struct btree_node * n, struct btree * b
    return n;
 }
 
+void ensure_valid_btree_node(struct btree_node * n, struct btree * b) {
+   if (!IS_CHECKOUT_BT(n->flags)) {
+      printf("not valid\n");
+      n = load_node_btree(n->pos,b);
+   }
+}
+
 struct btree_node * get_btree_cache(size_t pos, struct btree * b) {
    return query_skip_list(pos,NULL,b->cache->l);
 }
@@ -183,113 +190,14 @@ void clear_btree_cache(struct btree * b) {
    }
 }
 
-struct btree_node * split_root_btree(struct btree * b) {
-   struct btree_node * old_root = b->root;
-   struct btree_node * new_sibling = load_new_node_btree(++(b->size),b);
-   struct btree_node * new_root = load_new_node_btree(++(b->size),b);
-   if (IS_LEAF_BT(old_root->flags)) {
-      CLEAR_BT(old_root->flags); MULTI_SET_BT(old_root->flags,BT_MOD|BT_LEAF);
-      MULTI_SET_BT(new_sibling->flags,BT_LEAF|BT_MOD);
-      MULTI_SET_BT(new_root->flags,BT_NODE|BT_MOD);
-      /* set new_root values */
-      static int midpoint = BTREE_DATASIZE/2;
-      new_root->size = 1;
-      new_root->data[0] = old_root->data[midpoint];
-      new_root->data[BTREE_ELEMENTNUM] = old_root->pos;
-      new_root->data[BTREE_POINTERNUM] = new_sibling->pos;
-      new_sibling->size = midpoint;
-      old_root->size = midpoint;
-      for (int i = 0; i < midpoint; ++i) {
-         new_sibling->data[i] = old_root->data[i+midpoint+1];
-      }
+
+int is_full_btree_node(struct btree_node * n) {
+   if (IS_LEAF_BT(n->flags)) {
+      return n->size == BTREE_DATASIZE;
    }
-   else {
-      CLEAR_BT(old_root->flags); MULTI_SET_BT(old_root->flags,BT_MOD|BT_NODE);
-      MULTI_SET_BT(new_sibling->flags,BT_MOD|BT_NODE); 
-      MULTI_SET_BT(new_root->flags,BT_NODE|BT_MOD);
-      static int midpoint = BTREE_ELEMENTNUM/2;
-      new_root->size = 1;
-      new_root->data[0] = old_root->data[midpoint];
-      new_root->data[BTREE_ELEMENTNUM] = old_root->pos;
-      new_root->data[BTREE_POINTERNUM] = new_sibling->pos;
-      new_sibling->size = midpoint;
-      old_root->size = midpoint;
-      int i;
-      for (i = 0; i < midpoint; ++i) {
-         new_sibling->data[i] = old_root->data[i+midpoint+1];
-         new_sibling->data[i+BTREE_ELEMENTNUM] = old_root->data[i+midpoint+BTREE_POINTERNUM];
-      }
-      new_sibling->data[i+BTREE_ELEMENTNUM] = old_root->data[i+midpoint+BTREE_POINTERNUM];
-   }
-   old_root = safe_add_btree_cache(old_root,b);
-   new_sibling = safe_add_btree_cache(new_sibling,b);
-   return new_root;
+   else return n->size == BTREE_ELEMENTNUM;
 }
 
-void add_btree_node_btree(__uint64_t key, __uint64_t pointer, struct btree_node * n) {
-   int i = 0;
-   while (i < n->size) {
-      if (n->data[i] > key) break;
-      ++i;
-   }
-   for (int j = n->size; j > i; --j) {
-      n->data[j] = n->data[j-1];
-      n->data[j+BTREE_POINTERNUM] = n->data[j+BTREE_ELEMENTNUM];
-   }
-   n->data[i] = key; 
-   n->data[i+BTREE_POINTERNUM] = pointer;
-   ++(n->size);
-   SET_MOD_BT(n->flags);
-}
-
-void add_btree_leaf_btree(__uint64_t key, struct btree_node * n) {
-   int i = 0;
-   while (i < n->size) {
-      if (n->data[i] > key) break;
-      ++i;
-   }
-   for (int j = n->size; j > i; --j) {
-      n->data[j] = n->data[j-1];
-   }
-   n->data[i] = key;
-   ++(n->size);
-   SET_MOD_BT(n->flags);
-}
-
-void split_node_btree(struct btree_node * parent, struct btree_node * n, struct btree * b) {
-   struct btree_node * new_sibling = load_new_node_btree(++(b->size),b);
-   MULTI_SET_BT(new_sibling->flags,BT_NODE|BT_MOD);
-   SET_MOD_BT(n->flags);
-   static int midpoint = BTREE_ELEMENTNUM/2;
-
-   new_sibling->size = midpoint;
-   n->size = midpoint;
-
-   add_btree_node_btree(n->data[midpoint],new_sibling->pos,parent);
-   int i;
-   for (i = 0; i < midpoint; ++i) {
-      new_sibling->data[i] = n->data[i+midpoint+1];
-      new_sibling->data[i+BTREE_ELEMENTNUM] = n->data[i+midpoint+BTREE_ELEMENTNUM];
-   }
-   new_sibling->data[i+BTREE_ELEMENTNUM] = n->data[i+midpoint+BTREE_ELEMENTNUM];
-   new_sibling = safe_add_btree_cache(new_sibling,b);
-}
-
-void split_leaf_btree(struct btree_node * parent, struct btree_node * n, struct btree * b) {
-   struct btree_node * new_sibling = load_new_node_btree(++(b->size),b);
-   MULTI_SET_BT(new_sibling->flags,BT_LEAF|BT_MOD);
-   SET_MOD_BT(n->flags);
-   static int midpoint = BTREE_DATASIZE/2;
-
-   new_sibling->size = midpoint;
-   n->size = midpoint;
-
-   add_btree_node_btree(n->data[midpoint],new_sibling->pos,parent);
-   for (int i = 0; i < midpoint; ++i) {
-      new_sibling->data[i] = n->data[i+midpoint+1];
-   }
-   new_sibling = safe_add_btree_cache(new_sibling,b);
-}
 
 void get_metadata_btree(struct btree * b) {
    lseek(b->fptr,0,SEEK_SET);
@@ -370,51 +278,126 @@ int get_attempt_btree_leaf(__uint64_t key, struct btree_node * n) {
    return 0;
 }
 
-int is_full_btree_node(struct btree_node * n) {
-   if (IS_LEAF_BT(n->flags)) {
-      return n->size == BTREE_DATASIZE;
+void add_node_btree(__uint64_t key, __uint64_t pointer, struct btree_node * n) {
+   int i = 0,j;
+   while (n->data[i] < key && i < n->size) ++i;
+   for (j = n->size-1; j >= i; --j) {
+      n->data[j+1] = n->data[j];
+      n->data[j+2+BTREE_ELEMENTNUM] = n->data[j+1+BTREE_ELEMENTNUM];
    }
-   else return n->size == BTREE_ELEMENTNUM;
+   n->data[i] = key;
+   n->data[i+1+BTREE_ELEMENTNUM] = pointer;
+   ++(n->size);
+   SET_MOD_BT(n->flags);
 }
 
-int add_btree(__uint64_t key, struct btree * b) {
-   struct btree_node * p = NULL;
-   struct btree_node * c = b->root;
-   int res;
-   __uint64_t pointer;
-
-   if (is_full_btree_node(c)) {
-      b->root = split_root_btree(b);
-      c = b->root;
+void add_leaf_btree(__uint64_t key, struct btree_node * n) {
+   int i = 0, j;
+   while (n->data[i] < key && i < n->size) ++i;
+   for (j = n->size; j > i; --j) {
+      n->data[j] = n->data[j-1];
    }
+   n->data[i] = key;
+   ++(n->size);
+   SET_MOD_BT(n->flags);
+}
+
+void split_leaf_btree(struct btree_node * p, struct btree_node * n, struct btree * b) {
+   const static int midpoint = BTREE_DATASIZE/2;
+   struct btree_node * new_sibling = load_new_node_btree(++(b->size),b);
+   CLEAR_BT(new_sibling->flags); MULTI_SET_BT(new_sibling->flags,BT_MOD|BT_LEAF);
+   SET_MOD_BT(n->flags);
+   for (int i = 1; i <= midpoint; i++) {
+      new_sibling->data[i-1] = n->data[i+midpoint]; 
+   }
+   n->size = midpoint;
+   new_sibling->size = midpoint;
+   add_node_btree(n->data[midpoint],new_sibling->pos,p);
+   safe_add_btree_cache(new_sibling,b);
+   safe_add_btree_cache(p,b);
+   safe_add_btree_cache(n,b);
+}
+
+void split_node_btree(struct btree_node * p, struct btree_node * n, struct btree * b) {
+   const static int midpoint = BTREE_ELEMENTNUM/2;
+   struct btree_node * new_sibling = load_new_node_btree(++(b->size),b);
+   CLEAR_BT(new_sibling->flags); MULTI_SET_BT(new_sibling->flags,BT_MOD|BT_NODE);
+   SET_MOD_BT(n->flags);
+   int i;
+   for (i = 0; i < midpoint; i++) {
+      new_sibling->data[i] = n->data[i+midpoint+1];
+      new_sibling->data[i+BTREE_ELEMENTNUM] = n->data[i+midpoint+BTREE_POINTERNUM];
+   }
+   new_sibling->data[i+BTREE_ELEMENTNUM] = n->data[i+midpoint+BTREE_POINTERNUM];
+   n->size = midpoint;
+   new_sibling->size = midpoint;
+   add_node_btree(n->data[midpoint],new_sibling->pos,p);
+   safe_add_btree_cache(new_sibling,b);
+   safe_add_btree_cache(p,b);
+   safe_add_btree_cache(n,b);
+   ensure_valid_btree_node(p,b);
+   ensure_valid_btree_node(n,b);
+}
+
+void split_root_btree(struct btree * b) {
+   struct btree_node * old_root = b->root;
+   struct btree_node * new_root = load_new_node_btree(++(b->size),b);
+   CLEAR_BT(new_root->flags); MULTI_SET_BT(new_root->flags,BT_MOD|BT_NODE); 
+   b->root = new_root;
+   new_root->data[BTREE_ELEMENTNUM] = old_root->pos;
+   if (IS_LEAF_BT(old_root->flags)) {
+      split_leaf_btree(new_root,old_root,b);
+   } 
+   else {
+      split_node_btree(new_root,old_root,b);
+   }
+}
+
+void add_btree(__uint64_t key, struct btree * b) {
+
+   if (is_full_btree_node(b->root)) {
+      split_root_btree(b);
+   }
+
+   __uint64_t pointer;
+   int ret;
+   struct btree_node * c, * p;
+   c = b->root;
+   p = 0;
 
    while (1) {
       if (is_full_btree_node(c)) {
-         if (IS_LEAF_BT(c->flags)) 
+         if (p && is_full_btree_node(p)) {
+            printf("parent full\n");
+         }
+         if (IS_LEAF_BT(c->flags)) {
             split_leaf_btree(p,c,b);
-         else
-            split_node_btree(p,c,b);
-         safe_add_btree_cache(c,b);
-         safe_add_btree_cache(p,b);
+         }
+         else split_node_btree(p,c,b);
          c = p;
       }
-      if (IS_LEAF_BT(c->flags)) {
-         res = get_attempt_btree_leaf(key,c);
-         if (res) return 1;
-         add_btree_leaf_btree(key,c); 
-         return 0;
+
+      p = c;
+
+      if (IS_NODE_BT(c->flags)) {
+         ret = get_attempt_btree_node(key,c,&pointer);
+         if (!ret) {
+            c = get_node_btree(pointer,b);
+         }
+         else return;
       }
       else {
-         res = get_attempt_btree_node(key,c,&pointer);
-         if (res) return 1;
-         p = c;
-         c = get_node_btree(pointer,b);
+         ret = get_attempt_btree_leaf(key,c);
+         if (!ret) {
+            add_leaf_btree(key,c);
+         }
+         return;
       }
    }
 }
 
 void in_order_print_helper_btree(struct btree_node * n, struct btree * b) {
-   if (n == -1) return;
+   if (n == (struct btree_node *)-1) return;
    if (IS_LEAF_BT(n->flags)) {
       printf("<%ldl> ",n->pos);
       for (int i = 0; i < n->size; ++i) {
@@ -445,30 +428,30 @@ void in_order_print_btree(struct btree * b) {
    putchar('\n');
 }
 
-/*
+void cheap_print_node_btree(struct btree_node * n) {
+   printf("%04x|%d|%lu: ",n->flags,n->size,n->pos);
+   for (int i = 0; i < BTREE_DATASIZE; ++i) {
+      printf("%lu ",n->data[i]);
+   }
+   putchar('\n');
+}
+
+
 int main(void) {
 
    struct btree b;
 
    init_btree("btree.b",&b);
-    
-   const int cycles = 300000000;
 
-   int toadd;
+   const int cycles = 50;
 
-   for (int i = cycles; i > 0; --i) {
-      toadd = rand();
-      printf("adding %d %d\n",i,toadd);
-      add_btree(toadd,&b);
+   for (int i = 1; i <= cycles; i++) {
+      add_btree(i,&b);
    }
 
-   printf("blocks : %d\n",b.size);
-   printf("bankpos: %d\n",b.bank->pos);
-
-   //in_order_print_btree(&b);
+   in_order_print_btree(&b);
+   cheap_print_node_btree(b.root);
 
    close_btree(&b);
 
-
 }
-*/
