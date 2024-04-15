@@ -10,8 +10,9 @@
 #define BTREE_ELEMENTNUM 255
 #define BTREE_POINTERNUM 256
 #define BTREE_DATASIZE 511
-#define BTREE_CACHE_SIZE 9973 
-#define BTREE_BANK_SIZE 9980
+/* 241 991 9973 49999 99991 */
+#define BTREE_CACHE_SIZE 49999
+#define BTREE_BANK_SIZE 50005
 
 struct btree { int size; int fptr; struct btree_node * root; struct btree_cache * cache; struct btree_node_bank * bank; };
 struct btree_cache { int size; struct skip_list * l; struct ring_buffer * r; };
