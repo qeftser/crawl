@@ -445,6 +445,7 @@ void cheap_print_node_btree(struct btree_node * n) {
 }
 
 
+/*
 int main(void) {
 
    struct btree b;
@@ -462,11 +463,12 @@ int main(void) {
    }
    printf("add time: %f\n",(double)(clock() - s_clock)/CLOCKS_PER_SEC);
 
-   //in_order_print_btree(&b);
-   //cheap_print_node_btree(b.root);
+   in_order_print_btree(&b);
+   cheap_print_node_btree(b.root);
 
    s_clock = clock();
    close_btree(&b);
    printf("close time: %f\n",(double)(clock() - s_clock)/CLOCKS_PER_SEC);
 
 }
+*/
