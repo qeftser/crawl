@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <limits.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -40,7 +41,6 @@ void read_block_diskqueue(int pos, int head, struct diskqueue * d) {
    if (head) {
       read(d->fptr,d->hdata,DISKQUEUE_BLOCKSIZE);
       memcpy(&d->hmeta,d->hdata+DQ_DATA,sizeof(struct diskqueue_blockdata));
-      printf("lh %d lt %d np %d pp %d\n",d->hmeta.lh,d->hmeta.lt,d->hmeta.np,d->hmeta.pp);
    }
    else {
       read(d->fptr,d->tdata,DISKQUEUE_BLOCKSIZE);
@@ -87,17 +87,15 @@ void close_diskqueue(struct diskqueue * d) {
 
 
 void print_diskqueue(struct diskqueue * d) {
-   int buffer[DISKQUEUE_BLOCKSIZE/sizeof(int)];
+   __uint8_t buffer[DISKQUEUE_BLOCKSIZE];
    struct diskqueue_blockdata bmeta = { .np = d->hmeta.np };
    for (int i = d->hmeta.lh; i < d->hmeta.lt; ++i) {
       putchar(d->hdata[i]);
    }
-   printf("lh %d lt %d np %d pp %d\n",bmeta.lh,bmeta.lt,bmeta.np,bmeta.pp);
    while (bmeta.np && bmeta.np != d->tail) {
       lseek(d->fptr,bmeta.np*DISKQUEUE_BLOCKSIZE,SEEK_SET);
       read(d->fptr,buffer,DISKQUEUE_BLOCKSIZE);
       memcpy(&bmeta,buffer+DQ_DATA,sizeof(struct diskqueue_blockdata));
-      printf("lh %d lt %d np %d pp %d\n",bmeta.lh,bmeta.lt,bmeta.np,bmeta.pp);
       for (int i = 0; i < bmeta.lt; ++i) {
          putchar(buffer[i]);
       }
@@ -192,7 +190,6 @@ start:
 new_tail:
       if (d->tmeta.lt + dsize + 1 >= DISKQUEUE_MAX_ELEMENTS) {
          if (d->tmeta.lh == 0) {
-            printf("loading new tail\n");
             load_new_tail_diskqueue(d);
          }
          else {
@@ -206,20 +203,55 @@ new_tail:
    }
 }
 
+int dequeue_diskqueue(void * buf, int bsize, struct diskqueue * d) {
+   if (d->tail == d->head) {
+      if (d->hmeta.lh == d->hmeta.lt) {
+         return -1;
+      }
+      else {
+         memccpy(buf,d->hdata,DISKQUEUE_DELIMINATOR,bsize);
+         while (d->hdata[d->hmeta.lh] != DISKQUEUE_DELIMINATOR) {
+            ++(d->hmeta.lh);
+         }
+         ++(d->hmeta.lh);
+         return 0;
+      }
+   }
+   else {
+      if (d->hmeta.lh == d->hmeta.lt) {
+         if (d->hmeta.np == d->tail) {
+            write_block_diskqueue(0,d->tail,0,d);
+         }
+         load_next_head_diskqueue(d);
+      }
+   }
+   memccpy(buf,d->hdata,DISKQUEUE_DELIMINATOR,bsize);
+   while (d->hdata[d->hmeta.lh] != DISKQUEUE_DELIMINATOR) {
+      ++(d->hmeta.lh);
+   }
+   ++(d->hmeta.lh);
+   return 0;
+}
+
 int main(void) {
 
-   int cycles = 100000000;
+   __uint8_t buffer[120];
 
+   int cycles = 1000;
    struct diskqueue d;
+
+
    init_diskqueue("diskqueue.d",&d);
 
-   enqueue_diskqueue("hiiiiiiiiiiiiiiiiih",20,&d);
-   enqueue_diskqueue("hiiiiiiiiiiiiiiiiih",20,&d);
-   enqueue_diskqueue("hiiiiiiiiiiiiiiiiih",20,&d);
-   enqueue_diskqueue("hiiiiiiiiiiiiiiiiih",20,&d);
-   enqueue_diskqueue("hiiiiiiiiiiiiiiiiih",20,&d);
-   enqueue_diskqueue("hiiiiiiiiiiiiiiiiih",20,&d);
-   enqueue_diskqueue("hiiiiiiiiiiiiiiiiih",20,&d);
+   for (int j = 0; j < cycles; ++j) {
+      for (int i = 0; i < 520; ++i) {
+         enqueue_diskqueue("hiiiiiiiiiiiiiiiiih",20,&d);
+      }
+
+      for (int i = 0; i < 520; ++i) {
+         dequeue_diskqueue(buffer,120,&d);
+      }
+   }
 
    print_diskqueue(&d);
 
