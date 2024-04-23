@@ -3,13 +3,13 @@
 
 #define DISKQUEUE_32
 
-#define DISKQUEUE32_BLOCKSIZE 4096
+#define DISKQUEUE32_BLOCKSIZE 4096LL
 #define DISKQUEUE32_MAX_ELEMENTS 1020
 
 struct diskqueue32 { int fptr; int size; int head; int tail; 
                    int hdata[DISKQUEUE32_BLOCKSIZE/sizeof(int)];
                    int tdata[DISKQUEUE32_BLOCKSIZE/sizeof(int)]; 
-                   struct diskstack * block_stack; };
+                   struct diskstack32 * block_stack; };
 
 
 

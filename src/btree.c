@@ -1,4 +1,7 @@
 
+#define _LARGEFILE64_SOURCE 1
+#define _FILE_OFFSET_BITS 64
+
 #include "btree.h"
 #include "skiplist.h"
 #include "ringbuffer.h"
@@ -117,7 +120,7 @@ void return_btree_node_bank(struct btree_node * n, struct btree_node_bank * b) {
 struct btree_node * load_node_btree(size_t pos, struct btree * b) {
    struct btree_node * node = checkout_btree_node_bank(b->bank);
    static const int array_size = sizeof(__uint64_t)*BTREE_DATASIZE;
-   lseek(b->fptr,pos*BTREE_BLOCKSIZE,SEEK_SET);
+   lseek64(b->fptr,pos*BTREE_BLOCKSIZE,SEEK_SET);
    IGNORE_RET(read(b->fptr,&node->flags,sizeof(__uint32_t)));
    IGNORE_RET(read(b->fptr,&node->size,sizeof(__uint32_t)));
    IGNORE_RET(read(b->fptr,node->data,array_size));
@@ -137,7 +140,7 @@ struct btree_node * load_new_node_btree(size_t pos, struct btree * b) {
 
 void unload_node_btree(struct btree_node * n, struct btree * b) {
    static const int array_size = sizeof(__uint64_t)*BTREE_DATASIZE;
-   lseek(b->fptr,n->pos*BTREE_BLOCKSIZE,SEEK_SET);
+   lseek64(b->fptr,n->pos*BTREE_BLOCKSIZE,SEEK_SET);
    IGNORE_RET(write(b->fptr,&n->flags,sizeof(__uint32_t)));
    IGNORE_RET(write(b->fptr,&n->size,sizeof(__uint32_t)));
    IGNORE_RET(write(b->fptr,n->data,array_size));
@@ -146,7 +149,7 @@ void unload_node_btree(struct btree_node * n, struct btree * b) {
 
 void write_node_btree(struct btree_node * n, struct btree * b) {
    static const int array_size = sizeof(__uint64_t)*BTREE_DATASIZE;
-   lseek(b->fptr,n->pos*BTREE_BLOCKSIZE,SEEK_SET);
+   lseek64(b->fptr,n->pos*BTREE_BLOCKSIZE,SEEK_SET);
    IGNORE_RET(write(b->fptr,&n->flags,sizeof(__uint32_t)));
    IGNORE_RET(write(b->fptr,&n->size,sizeof(__uint32_t)));
    IGNORE_RET(write(b->fptr,n->data,array_size));
@@ -211,7 +214,7 @@ int is_full_btree_node(struct btree_node * n) {
 
 
 void get_metadata_btree(struct btree * b) {
-   lseek(b->fptr,0,SEEK_SET);
+   lseek64(b->fptr,0,SEEK_SET);
    IGNORE_RET(read(b->fptr,&b->size,sizeof(int)));
    size_t root_pos;
    IGNORE_RET(read(b->fptr,&root_pos,sizeof(size_t)));
@@ -219,7 +222,7 @@ void get_metadata_btree(struct btree * b) {
 }
 
 void write_metadata_btree(struct btree * b) {
-   lseek(b->fptr,0,SEEK_SET);
+   lseek64(b->fptr,0,SEEK_SET);
    IGNORE_RET(write(b->fptr,&b->size,sizeof(int)));
    IGNORE_RET(write(b->fptr,&b->root->pos,sizeof(size_t)));
 }
@@ -227,7 +230,7 @@ void write_metadata_btree(struct btree * b) {
 void init_btree(char * filepath, struct btree * b) {
    b->size = 0;
    int exists = (access(filepath,F_OK) == 0);
-   b->fptr = open(filepath,O_CREAT|O_RDWR,S_IRWXU); errno = 0;
+   b->fptr = open(filepath,O_CREAT|O_RDWR|O_LARGEFILE,S_IRWXU); errno = 0;
    if (b->fptr == -1) {
       perror("open");
    }
@@ -445,17 +448,16 @@ void cheap_print_node_btree(struct btree_node * n) {
 }
 
 
-/*
 int main(void) {
 
    struct btree b;
    clock_t s_clock;
 
    s_clock = clock();
-   init_btree("btree.b",&b);
+   init_btree("btree.d",&b);
    printf("init time: %f\n",(double)(clock() - s_clock)/CLOCKS_PER_SEC);
 
-   const int cycles = 1000000;
+   const int cycles = 0xfffffff;
 
    s_clock = clock();
    for (int i = cycles; i > 0; --i) {
@@ -463,12 +465,11 @@ int main(void) {
    }
    printf("add time: %f\n",(double)(clock() - s_clock)/CLOCKS_PER_SEC);
 
-   in_order_print_btree(&b);
-   cheap_print_node_btree(b.root);
+   //in_order_print_btree(&b);
+   //cheap_print_node_btree(b.root);
 
    s_clock = clock();
    close_btree(&b);
    printf("close time: %f\n",(double)(clock() - s_clock)/CLOCKS_PER_SEC);
 
 }
-*/

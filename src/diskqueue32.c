@@ -1,4 +1,7 @@
 
+#define _LARGEFILE64_SOURCE 1
+#define _FILE_OFFSET_BITS 64
+
 #include "diskqueue32.h"
 #include "diskstack32.h"
 #include <string.h>
@@ -18,22 +21,23 @@
 #define SEEK_SET 0
 #endif
 
+
 void read_metadata_diskqueue32(struct diskqueue32 * d) {
-   lseek(d->fptr,0,SEEK_SET);
+   lseek64(d->fptr,0,SEEK_SET);
    read(d->fptr,&(d->size),sizeof(int));
    read(d->fptr,&(d->head),sizeof(int));
    read(d->fptr,&(d->tail),sizeof(int));
 }
 
 void write_metadata_diskqueue32(struct diskqueue32 * d) {
-   lseek(d->fptr,0,SEEK_SET);
+   lseek64(d->fptr,0,SEEK_SET);
    write(d->fptr,&(d->size),sizeof(int));
    write(d->fptr,&(d->head),sizeof(int));
    write(d->fptr,&(d->tail),sizeof(int));
 }
 
 void write_block_diskqueue32(int next, int pos, int head, struct diskqueue32 * d) {
-   lseek(d->fptr,DISKQUEUE32_BLOCKSIZE*pos,SEEK_SET);
+   lseek64(d->fptr,DISKQUEUE32_BLOCKSIZE*pos,SEEK_SET);
    if (head) {
       d->hdata[DQ_PP] = next;
       write(d->fptr,d->hdata,DISKQUEUE32_BLOCKSIZE);
@@ -45,7 +49,7 @@ void write_block_diskqueue32(int next, int pos, int head, struct diskqueue32 * d
 }
 
 void read_block_diskqueue32(int pos, int head, struct diskqueue32 * d) {
-   lseek(d->fptr,DISKQUEUE32_BLOCKSIZE*pos,SEEK_SET);
+   lseek64(d->fptr,DISKQUEUE32_BLOCKSIZE*pos,SEEK_SET);
    if (head) {
       read(d->fptr,d->hdata,DISKQUEUE32_BLOCKSIZE);
    }
@@ -57,7 +61,7 @@ void read_block_diskqueue32(int pos, int head, struct diskqueue32 * d) {
 void init_diskqueue32(char * name, struct diskqueue32 * d) {
    int exists = (access(name,F_OK) == 0);
    d->size = 0;
-   d->fptr = open(name,O_CREAT|O_RDWR,S_IRWXU);
+   d->fptr = open(name,O_CREAT|O_RDWR|O_LARGEFILE,S_IRWXU);
    if (d->fptr == -1) {
       perror("open");
       exit(1);
@@ -65,8 +69,8 @@ void init_diskqueue32(char * name, struct diskqueue32 * d) {
    memset(d->hdata,0,DISKQUEUE32_BLOCKSIZE);
    memset(d->tdata,0,DISKQUEUE32_BLOCKSIZE);
    
-   d->block_stack = malloc(sizeof(struct diskstack));
-   init_diskstack("aux-diskstack.d",d->block_stack);
+   d->block_stack = malloc(sizeof(struct diskstack32));
+   init_diskstack32("aux-diskstack.d",d->block_stack);
 
    if (exists) {
       read_metadata_diskqueue32(d);
@@ -84,7 +88,7 @@ void close_diskqueue32(struct diskqueue32 * d) {
    write_block_diskqueue32(0,d->tail,0,d);
    write_block_diskqueue32(0,d->head,1,d);
    write_metadata_diskqueue32(d);
-   close_diskstack(d->block_stack);
+   close_diskstack32(d->block_stack);
    free(d->block_stack);
    close(d->fptr);
 }
@@ -96,7 +100,7 @@ void print_diskqueue32(struct diskqueue32 * d) {
    }
    buffer[DQ_NP] = d->hdata[DQ_NP];
    while (buffer[DQ_NP] && buffer[DQ_NP] != d->tail) {
-      lseek(d->fptr,buffer[DQ_NP]*DISKQUEUE32_BLOCKSIZE,SEEK_SET);
+      lseek64(d->fptr,buffer[DQ_NP]*DISKQUEUE32_BLOCKSIZE,SEEK_SET);
       read(d->fptr,buffer,DISKQUEUE32_BLOCKSIZE);
       for (int i = 0; i < DISKQUEUE32_MAX_ELEMENTS; ++i) {
          printf("%d ",buffer[i]);
@@ -114,17 +118,17 @@ void print_diskqueue32(struct diskqueue32 * d) {
 
 void load_new_head_diskqueue32(struct diskqueue32 * d) {
    int old_pos = d->head;
-   int new_pos = pop_diskstack(d->block_stack);
+   int new_pos = pop_diskstack32(d->block_stack);
    if (new_pos == -1) new_pos = ++(d->size);
    write_block_diskqueue32(new_pos,d->head,1,d);
-   memset(d->hdata,0,DISKSTACK_BLOCKSIZE);
+   memset(d->hdata,0,DISKQUEUE32_BLOCKSIZE);
    d->hdata[DQ_NP] = old_pos;
    d->head = new_pos;
 }
 
 void load_new_tail_diskqueue32(struct diskqueue32 * d) {
    int old_pos = d->tail;
-   int new_pos = pop_diskstack(d->block_stack);
+   int new_pos = pop_diskstack32(d->block_stack);
    if (new_pos == -1) new_pos = ++(d->size);
    write_block_diskqueue32(new_pos,d->tail,0,d);
    memset(d->tdata,0,DISKQUEUE32_BLOCKSIZE);
@@ -139,7 +143,7 @@ void load_next_head_diskqueue32(struct diskqueue32 * d) {
    read_block_diskqueue32(next_pos,1,d);
    d->head = next_pos;
    d->hdata[DQ_PP] = 0;
-   push_diskstack(curr_pos,d->block_stack);
+   push_diskstack32(curr_pos,d->block_stack);
 }
 
 void load_prev_tail_diskqueue32(struct diskqueue32 * d) {
@@ -149,7 +153,7 @@ void load_prev_tail_diskqueue32(struct diskqueue32 * d) {
    read_block_diskqueue32(prev_pos,0,d);
    d->tail = prev_pos;
    d->tdata[DQ_NP] = 0;
-   push_diskstack(curr_pos,d->block_stack);
+   push_diskstack32(curr_pos,d->block_stack);
 
 }
 
@@ -222,7 +226,7 @@ int dequeue_diskqueue32(struct diskqueue32 * d) {
 /*
 int main(void) {
 
-   int cycles = 100000000;
+   int cycles = 1000000000;
 
    struct diskqueue32 d;
    init_diskqueue32("diskqueue32.d",&d);

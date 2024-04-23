@@ -1,3 +1,7 @@
+
+#define _LARGEFILE64_SOURCE 1
+#define _FILE_OFFSET_BITS 64
+
 #include "diskqueue.h"
 #include "diskstack32.h"
 #include <string.h>
@@ -9,21 +13,21 @@
 #include <fcntl.h>
 
 void read_metadata_diskqueue(struct diskqueue * d) {
-   lseek(d->fptr,0,SEEK_SET);
+   lseek64(d->fptr,0,SEEK_SET);
    read(d->fptr,&(d->size),sizeof(int));
    read(d->fptr,&(d->head),sizeof(int));
    read(d->fptr,&(d->tail),sizeof(int));
 }
 
 void write_metadata_diskqueue(struct diskqueue * d) {
-   lseek(d->fptr,0,SEEK_SET);
+   lseek64(d->fptr,0,SEEK_SET);
    write(d->fptr,&(d->size),sizeof(int));
    write(d->fptr,&(d->head),sizeof(int));
    write(d->fptr,&(d->tail),sizeof(int));
 }
 
 void write_block_diskqueue(int next, int pos, int head, struct diskqueue * d) {
-   lseek(d->fptr,DISKQUEUE_BLOCKSIZE*pos,SEEK_SET);
+   lseek64(d->fptr,DISKQUEUE_BLOCKSIZE*pos,SEEK_SET);
    if (head) {
       d->hmeta.pp = next;
       write(d->fptr,d->hdata,DISKQUEUE_MAX_ELEMENTS);
@@ -37,7 +41,7 @@ void write_block_diskqueue(int next, int pos, int head, struct diskqueue * d) {
 }
 
 void read_block_diskqueue(int pos, int head, struct diskqueue * d) {
-   lseek(d->fptr,DISKQUEUE_BLOCKSIZE*pos,SEEK_SET);
+   lseek64(d->fptr,DISKQUEUE_BLOCKSIZE*pos,SEEK_SET);
    if (head) {
       read(d->fptr,d->hdata,DISKQUEUE_BLOCKSIZE);
       memcpy(&d->hmeta,d->hdata+DQ_DATA,sizeof(struct diskqueue_blockdata));
@@ -51,7 +55,7 @@ void read_block_diskqueue(int pos, int head, struct diskqueue * d) {
 void init_diskqueue(char * name, struct diskqueue * d) {
    int exists = (access(name,F_OK) == 0);
    d->size = 0;
-   d->fptr = open(name,O_CREAT|O_RDWR,S_IRWXU);
+   d->fptr = open(name,O_CREAT|O_RDWR|O_LARGEFILE,S_IRWXU);
    if (d->fptr == -1) {
       perror("open");
       exit(1);
@@ -61,8 +65,8 @@ void init_diskqueue(char * name, struct diskqueue * d) {
    memset(&d->hmeta,0,sizeof(struct diskqueue_blockdata));
    memset(&d->tmeta,0,sizeof(struct diskqueue_blockdata));
    
-   d->block_stack = malloc(sizeof(struct diskstack));
-   init_diskstack("aux-diskstack.d",d->block_stack);
+   d->block_stack = malloc(sizeof(struct diskstack32));
+   init_diskstack32("aux-diskstack.d",d->block_stack);
 
    if (exists) {
       read_metadata_diskqueue(d);
@@ -80,7 +84,7 @@ void close_diskqueue(struct diskqueue * d) {
    write_block_diskqueue(0,d->tail,0,d);
    write_block_diskqueue(0,d->head,1,d);
    write_metadata_diskqueue(d);
-   close_diskstack(d->block_stack);
+   close_diskstack32(d->block_stack);
    free(d->block_stack);
    close(d->fptr);
 }
@@ -93,7 +97,7 @@ void print_diskqueue(struct diskqueue * d) {
       putchar(d->hdata[i]);
    }
    while (bmeta.np && bmeta.np != d->tail) {
-      lseek(d->fptr,bmeta.np*DISKQUEUE_BLOCKSIZE,SEEK_SET);
+      lseek64(d->fptr,bmeta.np*DISKQUEUE_BLOCKSIZE,SEEK_SET);
       read(d->fptr,buffer,DISKQUEUE_BLOCKSIZE);
       memcpy(&bmeta,buffer+DQ_DATA,sizeof(struct diskqueue_blockdata));
       for (int i = 0; i < bmeta.lt; ++i) {
@@ -112,10 +116,10 @@ void print_diskqueue(struct diskqueue * d) {
 
 void load_new_head_diskqueue(struct diskqueue * d) {
    int old_pos = d->head;
-   int new_pos = pop_diskstack(d->block_stack);
+   int new_pos = pop_diskstack32(d->block_stack);
    if (new_pos == -1) new_pos = ++(d->size);
    write_block_diskqueue(new_pos,d->head,1,d);
-   memset(d->hdata,0,DISKSTACK_BLOCKSIZE);
+   memset(d->hdata,0,DISKQUEUE_BLOCKSIZE);
    memset(&d->hmeta,0,sizeof(struct diskqueue_blockdata));
    d->hmeta.np = old_pos;
    d->head = new_pos;
@@ -123,7 +127,7 @@ void load_new_head_diskqueue(struct diskqueue * d) {
 
 void load_new_tail_diskqueue(struct diskqueue * d) {
    int old_pos = d->tail;
-   int new_pos = pop_diskstack(d->block_stack);
+   int new_pos = pop_diskstack32(d->block_stack);
    if (new_pos == -1) new_pos = ++(d->size);
    write_block_diskqueue(new_pos,d->tail,0,d);
    memset(d->tdata,0,DISKQUEUE_BLOCKSIZE);
@@ -140,7 +144,7 @@ void load_next_head_diskqueue(struct diskqueue * d) {
    read_block_diskqueue(next_pos,1,d);
    d->head = next_pos;
    d->hmeta.pp = 0;
-   push_diskstack(curr_pos,d->block_stack);
+   push_diskstack32(curr_pos,d->block_stack);
 }
 
 void load_prev_tail_diskqueue(struct diskqueue * d) {
@@ -151,7 +155,7 @@ void load_prev_tail_diskqueue(struct diskqueue * d) {
    read_block_diskqueue(prev_pos,0,d);
    d->tail = prev_pos;
    d->tmeta.np = 0;
-   push_diskstack(curr_pos,d->block_stack);
+   push_diskstack32(curr_pos,d->block_stack);
 
 }
 
@@ -233,24 +237,23 @@ int dequeue_diskqueue(void * buf, int bsize, struct diskqueue * d) {
    return 0;
 }
 
+/*
 int main(void) {
 
    __uint8_t buffer[120];
 
-   int cycles = 1000;
+   int cycles = 0xfffffff;
    struct diskqueue d;
 
 
    init_diskqueue("diskqueue.d",&d);
 
    for (int j = 0; j < cycles; ++j) {
-      for (int i = 0; i < 520; ++i) {
-         enqueue_diskqueue("hiiiiiiiiiiiiiiiiih",20,&d);
-      }
+      enqueue_diskqueue("hiiiiiiiiiiiiiiiiih",20,&d);
+   }
 
-      for (int i = 0; i < 520; ++i) {
-         dequeue_diskqueue(buffer,120,&d);
-      }
+   for (int i = 0; i < cycles; ++i) {
+      dequeue_diskqueue(buffer,120,&d);
    }
 
    print_diskqueue(&d);
@@ -259,3 +262,4 @@ int main(void) {
 
    return 0;
 }
+*/
