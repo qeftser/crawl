@@ -5,7 +5,7 @@ CC := gcc
 # other variables
 OUTPUT := tst.e
 CC_FLAGS := -g -O3 -Wall -Wextra -Wpedantic 
-LD_FLAGS := -O3
+LD_FLAGS := -O3 -lcurl
 
 SRC_FILES := $(wildcard src/*.c)
 H_FILES := $(wildcard src/*.h)

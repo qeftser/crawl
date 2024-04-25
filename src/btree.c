@@ -447,7 +447,7 @@ void cheap_print_node_btree(struct btree_node * n) {
    putchar('\n');
 }
 
-
+/*
 int main(void) {
 
    struct btree b;
@@ -473,3 +473,4 @@ int main(void) {
    printf("close time: %f\n",(double)(clock() - s_clock)/CLOCKS_PER_SEC);
 
 }
+*/
