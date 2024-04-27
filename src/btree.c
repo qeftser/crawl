@@ -363,7 +363,7 @@ void split_root_btree(struct btree * b) {
    UNSET_ROOT_BT(old_root->flags);
 }
 
-void add_btree(__uint64_t key, struct btree * b) {
+int add_btree(__uint64_t key, struct btree * b) {
 
    if (is_full_btree_node(b->root)) {
       split_root_btree(b);
@@ -391,14 +391,15 @@ void add_btree(__uint64_t key, struct btree * b) {
             c = get_node_btree(pointer,b);
             UNSET_HELD_BT(p->flags);
          }
-         else return;
+         else return 0;
       }
       else {
          pointer = get_attempt_btree_leaf(key,c);
          if (!pointer) {
             add_leaf_btree(key,c);
+            return 1;
          }
-         return;
+         return 0;
       }
    }
 }

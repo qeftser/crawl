@@ -19,4 +19,10 @@ struct btree_cache { int size; struct skip_list * l; struct ring_buffer * r; };
 struct btree_node {  __uint32_t flags; __uint32_t size; size_t pos;  __uint64_t * data; };
 struct btree_node_bank { struct btree_node ** store; size_t pos; };
 
+void init_btree(char *, struct btree *);
+void close_btree(struct btree *);
+int add_btree(__uint64_t, struct btree *);
+
+void in_order_print_btree(struct btree *);
+
 #endif
